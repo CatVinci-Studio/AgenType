@@ -1,5 +1,6 @@
-import { OCR_LABELS } from "../../lib/constants";
+import { OCR_OPTIONS } from "../../lib/constants";
 import type { OcrMode } from "../../lib/types";
+import type { Translator } from "../../lib/i18n";
 
 type InputPanelProps = {
   inputText: string;
@@ -15,6 +16,7 @@ type InputPanelProps = {
   onChangeOcrMode: (value: OcrMode) => void;
   onChangeCandidateCount: (value: number) => void;
   onChangeHistoryEnabled: (value: boolean) => void;
+  t: Translator;
 };
 
 const InputPanel = ({
@@ -31,46 +33,47 @@ const InputPanel = ({
   onChangeOcrMode,
   onChangeCandidateCount,
   onChangeHistoryEnabled,
+  t,
 }: InputPanelProps) => (
   <section className="panel panel-primary">
     <div className="panel-header">
-      <h2>输入与触发</h2>
-      <div className="chip">快捷键：{hotkey}</div>
+      <h2>{t("panel.input")}</h2>
+      <div className="chip">{t("label.hotkey")}: {hotkey}</div>
     </div>
     <div className="actions">
       <button className="primary" onClick={onCapture}>
-        截图并生成
+        {t("action.capture")}
       </button>
-      <button onClick={onClipboard}>读取剪贴板文本</button>
+      <button onClick={onClipboard}>{t("action.clipboardText")}</button>
     </div>
     <div className="textarea-block">
-      <label htmlFor="input">需要回复的内容</label>
+      <label htmlFor="input">{t("label.replyInput")}</label>
       <textarea
         id="input"
         value={inputText}
         onChange={(event) => onChangeText(event.target.value)}
-        placeholder="粘贴或输入对方的邮件/消息内容..."
+        placeholder={t("placeholder.input")}
       />
     </div>
     <div className="actions">
-      <button onClick={onGenerate}>仅用文本生成</button>
+      <button onClick={onGenerate}>{t("action.generate")}</button>
       <button className="ghost" onClick={onClear}>
-        清空输入
+        {t("action.clear")}
       </button>
     </div>
     <div className="inline-settings">
       <div>
-        <span>OCR 模式</span>
+        <span>{t("label.ocrMode")}</span>
         <select value={ocrMode} onChange={(event) => onChangeOcrMode(event.target.value as OcrMode)}>
-          {Object.entries(OCR_LABELS).map(([value, label]) => (
+          {OCR_OPTIONS.map((value) => (
             <option key={value} value={value}>
-              {label}
+              {t(`ocr.${value}`)}
             </option>
           ))}
         </select>
       </div>
       <div>
-        <span>候选数量</span>
+        <span>{t("label.candidateCount")}</span>
         <select
           value={candidateCount}
           onChange={(event) => onChangeCandidateCount(Number(event.target.value))}
@@ -83,13 +86,13 @@ const InputPanel = ({
         </select>
       </div>
       <div>
-        <span>历史记录</span>
+        <span>{t("label.history")}</span>
         <select
           value={historyEnabled ? "on" : "off"}
           onChange={(event) => onChangeHistoryEnabled(event.target.value === "on")}
         >
-          <option value="on">开启</option>
-          <option value="off">关闭</option>
+          <option value="on">{t("toggle.on")}</option>
+          <option value="off">{t("toggle.off")}</option>
         </select>
       </div>
     </div>

@@ -1,20 +1,23 @@
+import type { Translator } from "../lib/i18n";
+
 type FloatingHeaderProps = {
   onOpenMain: () => void;
   onClose: () => void;
+  t: Translator;
 };
 
-const FloatingHeader = ({ onOpenMain, onClose }: FloatingHeaderProps) => (
+const FloatingHeader = ({ onOpenMain, onClose, t }: FloatingHeaderProps) => (
   <header className="floating-header">
     <div>
       <p className="eyebrow">AgenType</p>
-      <h1>浮窗模式</h1>
+      <h1>{t("panel.floating")}</h1>
     </div>
     <div className="floating-actions">
       <button className="ghost" onClick={onOpenMain}>
-        打开主界面
+        {t("action.openMain")}
       </button>
       <button className="ghost" onClick={onClose}>
-        隐藏
+        {t("action.hide")}
       </button>
     </div>
   </header>

@@ -1,4 +1,4 @@
 {
-  "system": "你是专业的邮件/消息回复助手。必须只输出 JSON 数组，不要包含额外说明或代码块。",
-  "template": "原始内容：{{input}}\n\n生成 {{count}} 个候选回复。每个候选必须遵循对应的风格配置：\n{{styles}}\n\n输出格式严格为 JSON 数组，每项包含 id 与 text：\n[{\"id\":\"slot1\",\"text\":\"...\"}]"
+  "system": "You are a professional assistant that drafts concise and appropriate replies. Output only a JSON array and nothing else.",
+  "template": "Original content:\n{{input}}\n\nGenerate {{count}} reply candidates. Each candidate must strictly follow its style configuration:\n{{styles}}\n\nOutput format must be a JSON array, each item contains id and text:\n[{\"id\":\"slot1\",\"text\":\"...\"}]"
 }

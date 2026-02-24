@@ -1,5 +1,7 @@
 export type OcrMode = "system" | "vision" | "system_fallback_vision";
 
+export type UiLanguage = "en" | "zh";
+
 export type Slot = {
   id: string;
   name: string;
@@ -19,6 +21,7 @@ export type Settings = {
   modelVision: string;
   modelOptions: string[];
   hotkey: string;
+  uiLanguage: UiLanguage;
   slots: Slot[];
 };
 

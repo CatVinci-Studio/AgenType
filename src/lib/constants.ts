@@ -56,35 +56,15 @@ export const DEFAULT_SETTINGS: Settings = {
   modelText: "gpt-4o-mini",
   modelVision: "gpt-4o-mini",
   hotkey: "",
+  uiLanguage: "en",
   modelOptions: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"],
   slots: DEFAULT_SLOTS,
 };
 
-export const OCR_LABELS: Record<string, string> = {
-  system: "系统 OCR",
-  vision: "视觉模型",
-  system_fallback_vision: "OCR 优先（失败回退）",
-};
-
-export const TONE_OPTIONS = [
-  { value: "formal", label: "正式" },
-  { value: "concise", label: "简短" },
-  { value: "warm", label: "热情" },
-  { value: "professional", label: "专业" },
-  { value: "humorous", label: "幽默" },
-  { value: "friendly", label: "友好" },
-];
-
-export const LANGUAGE_OPTIONS = [
-  { value: "zh", label: "中文" },
-  { value: "en", label: "英文" },
-];
-
-export const LENGTH_OPTIONS = [
-  { value: "short", label: "短" },
-  { value: "medium", label: "中" },
-  { value: "long", label: "长" },
-];
+export const OCR_OPTIONS = ["system", "vision", "system_fallback_vision"] as const;
+export const TONE_OPTIONS = ["formal", "concise", "warm", "professional", "humorous", "friendly"] as const;
+export const LANGUAGE_OPTIONS = ["zh", "en"] as const;
+export const LENGTH_OPTIONS = ["short", "medium", "long"] as const;
 
 export const SETTINGS_STORE_PATH = "settings.json";
 export const STRONGHOLD_PATH_NAME = "agentype.vault";

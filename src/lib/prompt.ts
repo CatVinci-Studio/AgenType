@@ -1,15 +1,29 @@
-import { LENGTH_OPTIONS, TONE_OPTIONS } from "./constants";
 import type { PromptConfig, Slot } from "./types";
+
+const toneLabels: Record<string, string> = {
+  formal: "Formal",
+  concise: "Concise",
+  warm: "Warm",
+  professional: "Professional",
+  humorous: "Humorous",
+  friendly: "Friendly",
+};
+
+const lengthLabels: Record<string, string> = {
+  short: "Short",
+  medium: "Medium",
+  long: "Long",
+};
 
 export const buildStyleLines = (slots: Slot[]) =>
   slots
     .map((slot) => {
-      const greeting = slot.greeting ? "是" : "否";
-      const closing = slot.closing ? "是" : "否";
-      const languageLabel = slot.language === "zh" ? "中文" : "英文";
-      const lengthLabel = LENGTH_OPTIONS.find((option) => option.value === slot.length)?.label ?? slot.length;
-      const toneLabel = TONE_OPTIONS.find((option) => option.value === slot.toneClass)?.label ?? slot.toneClass;
-      return `${slot.id}: 语气=${toneLabel}, 语言=${languageLabel}, 长度=${lengthLabel}, 称呼=${greeting}, 收尾=${closing}`;
+      const greeting = slot.greeting ? "yes" : "no";
+      const closing = slot.closing ? "yes" : "no";
+      const languageLabel = slot.language === "zh" ? "Chinese" : "English";
+      const lengthLabel = lengthLabels[slot.length] ?? slot.length;
+      const toneLabel = toneLabels[slot.toneClass] ?? slot.toneClass;
+      return `${slot.id}: tone=${toneLabel}, language=${languageLabel}, length=${lengthLabel}, greeting=${greeting}, closing=${closing}`;
     })
     .join("\n");
 

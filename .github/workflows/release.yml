@@ -11,7 +11,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, windows-latest]
+        include:
+          - platform: macos-latest
+            bundles: app,dmg
+          - platform: windows-latest
+            bundles: nsis,portable
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout
@@ -42,3 +46,4 @@ jobs:
           releaseBody: "Automated release for AgenType."
           releaseDraft: true
           prerelease: true
+          args: --bundles ${{ matrix.bundles }}

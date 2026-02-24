@@ -1,5 +1,6 @@
 import type { Candidate, HistoryEntry } from "../../lib/types";
 import { formatLocalTime } from "../../lib/utils";
+import type { Translator } from "../../lib/i18n";
 
 type HistoryPanelProps = {
   history: HistoryEntry[];
@@ -9,12 +10,13 @@ type HistoryPanelProps = {
   onCopy: (text: string) => void;
   onInsert?: (text: string) => void;
   variant?: "compact" | "full";
+  t: Translator;
 };
 
-const renderActions = (candidates: Candidate[], onCopy: (text: string) => void) =>
+const renderActions = (candidates: Candidate[], onCopy: (text: string) => void, t: Translator) =>
   candidates.slice(0, 1).map((candidate) => (
     <button key={candidate.id} onClick={() => onCopy(candidate.text)}>
-      复制
+      {t("action.copy")}
     </button>
   ));
 
@@ -26,16 +28,17 @@ const HistoryPanel = ({
   onCopy,
   onInsert,
   variant = "full",
+  t,
 }: HistoryPanelProps) => (
   <section className="panel panel-history">
     <div className="panel-header">
-      <h2>历史记录</h2>
-      <span className="chip">{history.length} 条</span>
+      <h2>{t("panel.history")}</h2>
+      <span className="chip">{t("count.items", { count: history.length })}</span>
     </div>
     {!historyEnabled ? (
-      <div className="empty">历史记录已关闭。</div>
+      <div className="empty">{t("empty.historyDisabled")}</div>
     ) : history.length === 0 ? (
-      <div className="empty">暂无历史记录。</div>
+      <div className="empty">{t("empty.history")}</div>
     ) : (
       <div className="history-list">
         {(variant === "compact" ? history.slice(0, 6) : history).map((entry) => (
@@ -45,11 +48,13 @@ const HistoryPanel = ({
           >
             <div>
               <span className="tag subtle">{formatLocalTime(entry.createdAt)}</span>
-              <p>{entry.input || "(截图内容)"}</p>
+              <p>{entry.input || t("label.screenshotContent")}</p>
             </div>
             <div className="history-actions">
-              {variant === "full" && onSelect ? <button onClick={() => onSelect(entry.id)}>查看</button> : null}
-              {renderActions(entry.candidates, onCopy)}
+              {variant === "full" && onSelect ? (
+                <button onClick={() => onSelect(entry.id)}>{t("action.view")}</button>
+              ) : null}
+              {renderActions(entry.candidates, onCopy, t)}
             </div>
           </div>
         ))}
@@ -60,6 +65,7 @@ const HistoryPanel = ({
         entry={history.find((item) => item.id === selectedHistoryId)}
         onCopy={onCopy}
         onInsert={onInsert}
+        t={t}
       />
     ) : null}
   </section>
@@ -69,9 +75,10 @@ type HistoryDetailProps = {
   entry?: HistoryEntry;
   onCopy: (text: string) => void;
   onInsert: (text: string) => void;
+  t: Translator;
 };
 
-const HistoryDetail = ({ entry, onCopy, onInsert }: HistoryDetailProps) => {
+const HistoryDetail = ({ entry, onCopy, onInsert, t }: HistoryDetailProps) => {
   if (!entry) {
     return null;
   }
@@ -79,8 +86,8 @@ const HistoryDetail = ({ entry, onCopy, onInsert }: HistoryDetailProps) => {
   return (
     <div className="history-detail">
       <div className="panel-header">
-        <h3>历史详情</h3>
-        <span className="chip">{entry.candidates.length} 条</span>
+        <h3>{t("panel.historyDetail")}</h3>
+        <span className="chip">{t("count.items", { count: entry.candidates.length })}</span>
       </div>
       <div className="candidate-list">
         {entry.candidates.map((candidate) => (
@@ -91,9 +98,9 @@ const HistoryDetail = ({ entry, onCopy, onInsert }: HistoryDetailProps) => {
             <p>{candidate.text}</p>
             <div className="actions">
               <button className="primary" onClick={() => onCopy(candidate.text)}>
-                复制
+                {t("action.copy")}
               </button>
-              <button onClick={() => onInsert(candidate.text)}>插入</button>
+              <button onClick={() => onInsert(candidate.text)}>{t("action.insert")}</button>
             </div>
           </div>
         ))}

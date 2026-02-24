@@ -1,4 +1,5 @@
 import type { Candidate, Slot } from "../../lib/types";
+import type { Translator } from "../../lib/i18n";
 
 type CandidatesPanelProps = {
   candidates: Candidate[];
@@ -6,16 +7,17 @@ type CandidatesPanelProps = {
   onCopy: (text: string) => void;
   onInsert: (text: string) => void;
   title?: string;
+  t: Translator;
 };
 
-const CandidatesPanel = ({ candidates, slots, onCopy, onInsert, title = "候选回复" }: CandidatesPanelProps) => (
+const CandidatesPanel = ({ candidates, slots, onCopy, onInsert, title, t }: CandidatesPanelProps) => (
   <section className="panel panel-candidates">
     <div className="panel-header">
-      <h2>{title}</h2>
-      <span className="chip">{candidates.length} 条</span>
+      <h2>{title ?? t("panel.candidates")}</h2>
+      <span className="chip">{t("count.items", { count: candidates.length })}</span>
     </div>
     {candidates.length === 0 ? (
-      <div className="empty">等待生成回复。</div>
+      <div className="empty">{t("empty.candidates")}</div>
     ) : (
       <div className="candidate-list">
         {candidates.map((candidate) => {
@@ -24,14 +26,16 @@ const CandidatesPanel = ({ candidates, slots, onCopy, onInsert, title = "候选�
             <div className="candidate-card" key={candidate.id}>
               <div className="candidate-head">
                 <span className="tag">{slot?.name || candidate.id}</span>
-                <span className="tag subtle">{slot?.language === "en" ? "EN" : "中文"}</span>
+                <span className="tag subtle">
+                  {slot?.language === "en" ? t("language.short.en") : t("language.short.zh")}
+                </span>
               </div>
               <p>{candidate.text}</p>
               <div className="actions">
                 <button className="primary" onClick={() => onCopy(candidate.text)}>
-                  复制
+                  {t("action.copy")}
                 </button>
-                <button onClick={() => onInsert(candidate.text)}>插入</button>
+                <button onClick={() => onInsert(candidate.text)}>{t("action.insert")}</button>
               </div>
             </div>
           );

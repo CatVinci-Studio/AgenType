@@ -21,10 +21,12 @@ export const mergeSettings = (stored?: Partial<Settings> | null): Settings => {
     1,
     DEFAULT_SLOTS.length,
   );
+  const uiLanguage = stored.uiLanguage === "zh" || stored.uiLanguage === "en" ? stored.uiLanguage : "en";
   return {
     ...DEFAULT_SETTINGS,
     ...stored,
     candidateCount,
+    uiLanguage,
     slots: stored.slots?.length ? stored.slots : DEFAULT_SETTINGS.slots,
     hotkey: stored.hotkey || getDefaultHotkey(),
   };

@@ -64,11 +64,19 @@ export const saveApiKey = async (store: StoreType, apiKey: string) => {
 export const ensurePromptFile = async () => {
   const dataDir = await appDataDir();
   const promptPath = await join(dataDir, PROMPT_FILE_NAME);
+  const defaultContent = JSON.stringify(defaultPrompts, null, 2);
   const existsFile = await exists(promptPath);
-  if (!existsFile) {
-    await writeTextFile(promptPath, JSON.stringify(defaultPrompts, null, 2));
+  let currentContent = "";
+  if (existsFile) {
+    currentContent = await readTextFile(promptPath);
   }
-  const content = await readTextFile(promptPath);
-  const parsed = safeParseJson<PromptConfig>(content) ?? defaultPrompts;
-  return { promptPath, promptConfig: parsed };
+
+  const normalized = currentContent.trim();
+  const shouldWrite = !existsFile || normalized !== defaultContent;
+  if (shouldWrite) {
+    await writeTextFile(promptPath, defaultContent);
+  }
+
+  const parsed = safeParseJson<PromptConfig>(defaultContent) ?? defaultPrompts;
+  return { promptPath, promptConfig: parsed, migrated: existsFile && normalized !== defaultContent };
 };

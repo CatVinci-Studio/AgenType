@@ -13,6 +13,7 @@ import HistoryPanel from "./features/history/HistoryPanel";
 import InputPanel from "./features/input/InputPanel";
 import SettingsPanel from "./features/settings/SettingsPanel";
 import { DEFAULT_SETTINGS, SETTINGS_STORE_PATH } from "./lib/constants";
+import { createTranslator } from "./lib/i18n";
 import { requestOpenAI } from "./lib/openai";
 import { waitForClipboardImage, imageToBase64 } from "./lib/ocr";
 import { buildStyleLines, renderPrompt } from "./lib/prompt";
@@ -40,6 +41,7 @@ function App() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const storeRef = useRef<Store | null>(null);
 
+  const t = useMemo(() => createTranslator(settings.uiLanguage), [settings.uiLanguage]);
   const activeSlots = useMemo(() => settings.slots.slice(0, settings.candidateCount), [settings]);
 
   useEffect(() => {
@@ -49,13 +51,18 @@ function App() {
       });
       storeRef.current = store;
       const storedSettings = (await store.get("settings")) as Settings | undefined;
-      setSettings(mergeSettings(storedSettings));
+      const mergedSettings = mergeSettings(storedSettings);
+      setSettings(mergedSettings);
       const storedHistory = (await store.get("history")) as HistoryEntry[] | undefined;
       setHistory(Array.isArray(storedHistory) ? storedHistory : []);
 
-      const { promptPath, promptConfig } = await ensurePromptFile();
+      const { promptPath, promptConfig, migrated } = await ensurePromptFile();
       setPromptConfig(promptConfig);
       setPromptPath(promptPath);
+      if (migrated) {
+        const translator = createTranslator(mergedSettings.uiLanguage);
+        setStatus({ state: "success", message: translator("status.promptMigrated") });
+      }
 
       const apiKey = await loadApiKey(store);
       setApiKey(apiKey);
@@ -108,7 +115,7 @@ function App() {
           }
         });
       } catch (error) {
-        setStatus({ state: "error", message: "快捷键注册失败，请检查格式" });
+        setStatus({ state: "error", message: t("status.hotkeyFailed") });
       }
     };
 
@@ -116,7 +123,7 @@ function App() {
     return () => {
       unregisterAll();
     };
-  }, [settings.hotkey]);
+  }, [settings.hotkey, t]);
 
   const updateStatus = (state: Status["state"], message: string) => {
     setStatus({ state, message });
@@ -125,33 +132,33 @@ function App() {
   const handleApiKeySave = async () => {
     if (!storeRef.current) return;
     await saveApiKey(storeRef.current, apiKey);
-    updateStatus("success", "API Key 已保存");
+    updateStatus("success", t("status.apiKeySaved"));
   };
 
   const handleCapture = async () => {
-    updateStatus("working", "等待截图完成...");
+    updateStatus("working", t("status.waitingScreenshot"));
     try {
       await invoke("trigger_screenshot");
       const image = await waitForClipboardImage();
       const base64 = await imageToBase64(image);
       await processInput({ imageBase64: base64, inputSource: "screenshot" });
     } catch (error) {
-      updateStatus("error", error instanceof Error ? error.message : "截图失败");
+      updateStatus("error", error instanceof Error ? error.message : t("status.screenshotFailed"));
     }
   };
 
   const handleClipboardText = async () => {
-    updateStatus("working", "读取剪贴板文本...");
+    updateStatus("working", t("status.clipboardReading"));
     try {
       const text = await readText();
       if (!text.trim()) {
-        updateStatus("error", "剪贴板没有文本内容");
+        updateStatus("error", t("status.clipboardEmpty"));
         return;
       }
       setInputText(text);
       await processInput({ inputText: text, inputSource: "clipboard" });
     } catch (error) {
-      updateStatus("error", error instanceof Error ? error.message : "读取剪贴板失败");
+      updateStatus("error", error instanceof Error ? error.message : t("status.clipboardFailed"));
     }
   };
 
@@ -165,7 +172,7 @@ function App() {
     inputSource: HistoryEntry["source"];
   }) => {
     if (!apiKey) {
-      updateStatus("error", "请先在设置中填写 OpenAI API Key");
+      updateStatus("error", t("status.noApiKey"));
       return;
     }
 
@@ -179,22 +186,22 @@ function App() {
           setInputText(finalText);
           useVision = false;
         } else if (settings.ocrMode === "system") {
-          updateStatus("working", "系统 OCR 未返回文本，使用视觉模型继续");
+          updateStatus("working", t("status.ocrEmptyFallback"));
           useVision = true;
         }
       } catch (error) {
         if (settings.ocrMode === "system") {
-          updateStatus("working", "系统 OCR 不可用，使用视觉模型继续");
+          updateStatus("working", t("status.ocrUnavailableFallback"));
           useVision = true;
         } else {
-          updateStatus("working", "系统 OCR 失败，使用视觉模型继续");
+          updateStatus("working", t("status.ocrFailedFallback"));
           useVision = true;
         }
       }
     }
 
     if (!finalText.trim() && !useVision) {
-      updateStatus("error", "没有可处理的文本或图片");
+      updateStatus("error", t("status.noContent"));
       return;
     }
 
@@ -204,7 +211,7 @@ function App() {
 
     let responseText = "";
     try {
-      updateStatus("working", "生成回复中...");
+      updateStatus("working", t("status.generating"));
       responseText = await requestOpenAI({
         apiKey,
         model: useVision ? settings.modelVision : settings.modelText,
@@ -213,13 +220,13 @@ function App() {
         imageBase64: useVision ? imageBase64 : undefined,
       });
     } catch (error) {
-      updateStatus("error", error instanceof Error ? error.message : "请求失败");
+      updateStatus("error", error instanceof Error ? error.message : t("status.requestFailed"));
       return;
     }
 
     const parsed = safeParseJson<OpenAIResult>(responseText);
     if (!parsed || !Array.isArray(parsed)) {
-      updateStatus("error", "返回格式解析失败，请调整 prompt 模板");
+      updateStatus("error", t("status.parseFailed"));
       return;
     }
 
@@ -231,12 +238,12 @@ function App() {
       .filter((item) => item.text);
 
     if (!normalized.length) {
-      updateStatus("error", "未生成可用回复");
+      updateStatus("error", t("status.noCandidates"));
       return;
     }
 
     setCandidates(normalized);
-    updateStatus("success", "候选回复已生成");
+    updateStatus("success", t("status.candidatesReady"));
 
     if (settings.historyEnabled) {
       const historyInput = finalText || inputText;
@@ -254,7 +261,7 @@ function App() {
 
   const handleManualGenerate = async () => {
     if (!inputText.trim()) {
-      updateStatus("error", "请输入需要回复的内容");
+      updateStatus("error", t("status.needInput"));
       return;
     }
     await processInput({ inputText, inputSource: "manual" });
@@ -262,17 +269,17 @@ function App() {
 
   const handleCopy = async (text: string) => {
     await writeText(text);
-    updateStatus("success", "已复制到剪贴板");
+    updateStatus("success", t("status.copied"));
   };
 
   const handleInsert = async (text: string) => {
-    updateStatus("working", "正在插入...");
+    updateStatus("working", t("status.inserting"));
     try {
       await invoke("insert_text", { text });
-      updateStatus("success", "已插入到当前输入框");
+      updateStatus("success", t("status.inserted"));
     } catch (error) {
       await writeText(text);
-      updateStatus("error", "插入失败，已复制到剪贴板");
+      updateStatus("error", t("status.insertFailedCopied"));
     }
   };
 
@@ -284,7 +291,7 @@ function App() {
   const handleReloadPrompts = async () => {
     const { promptConfig } = await ensurePromptFile();
     setPromptConfig(promptConfig);
-    updateStatus("success", "已重新加载 prompt");
+    updateStatus("success", t("status.promptReloaded"));
   };
 
   const handleOpenFloating = async () => {
@@ -338,22 +345,23 @@ function App() {
   if (isFloating) {
     return (
       <div className="app floating">
-        <FloatingHeader onOpenMain={handleOpenMain} onClose={handleCloseFloating} />
+        <FloatingHeader onOpenMain={handleOpenMain} onClose={handleCloseFloating} t={t} />
         <div className="status-block">
-          <StatusBadge status={status} />
+          <StatusBadge status={status} fallback={t("status.ready")} />
         </div>
         <div className="actions">
           <button className="primary" onClick={handleCapture}>
-            截图并生成
+            {t("action.capture")}
           </button>
-          <button onClick={handleClipboardText}>读取剪贴板</button>
+          <button onClick={handleClipboardText}>{t("action.clipboard")}</button>
         </div>
-        <CandidatesPanel candidates={candidates} slots={settings.slots} onCopy={handleCopy} onInsert={handleInsert} />
+        <CandidatesPanel candidates={candidates} slots={settings.slots} onCopy={handleCopy} onInsert={handleInsert} t={t} />
         <HistoryPanel
           history={history}
           historyEnabled={settings.historyEnabled}
           onCopy={handleCopy}
           variant="compact"
+          t={t}
         />
       </div>
     );
@@ -361,7 +369,7 @@ function App() {
 
   return (
     <div className="app">
-      <AppHeader status={status} onReloadPrompts={handleReloadPrompts} onOpenFloating={handleOpenFloating} />
+      <AppHeader status={status} onReloadPrompts={handleReloadPrompts} onOpenFloating={handleOpenFloating} t={t} />
       <main className="main-grid">
         <InputPanel
           inputText={inputText}
@@ -377,8 +385,9 @@ function App() {
           onChangeOcrMode={(value) => handleSettingsChange("ocrMode", value)}
           onChangeCandidateCount={(value) => handleSettingsChange("candidateCount", value)}
           onChangeHistoryEnabled={(value) => handleSettingsChange("historyEnabled", value)}
+          t={t}
         />
-        <CandidatesPanel candidates={candidates} slots={settings.slots} onCopy={handleCopy} onInsert={handleInsert} />
+        <CandidatesPanel candidates={candidates} slots={settings.slots} onCopy={handleCopy} onInsert={handleInsert} t={t} />
         <HistoryPanel
           history={history}
           historyEnabled={settings.historyEnabled}
@@ -387,6 +396,7 @@ function App() {
           onCopy={handleCopy}
           onInsert={handleInsert}
           variant="full"
+          t={t}
         />
         <SettingsPanel
           settings={settings}
@@ -397,6 +407,7 @@ function App() {
           onSettingsChange={handleSettingsChange}
           onOpenPromptFile={handleOpenPromptFile}
           onUpdateSlot={updateSlot}
+          t={t}
         />
       </main>
     </div>

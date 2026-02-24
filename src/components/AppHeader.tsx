@@ -1,26 +1,28 @@
 import StatusBadge from "./StatusBadge";
 import type { Status } from "../lib/types";
+import type { Translator } from "../lib/i18n";
 
 type AppHeaderProps = {
   status: Status;
   onReloadPrompts: () => void;
   onOpenFloating: () => void;
+  t: Translator;
 };
 
-const AppHeader = ({ status, onReloadPrompts, onOpenFloating }: AppHeaderProps) => (
+const AppHeader = ({ status, onReloadPrompts, onOpenFloating, t }: AppHeaderProps) => (
   <header className="app-header">
     <div>
       <p className="eyebrow">AgenType</p>
-      <h1>一键截取 · 多风格回复 · 快速插入</h1>
-      <p className="subhead">全局快捷键触发截图与剪贴板读取，生成多个候选回复并直接插入当前输入框。</p>
+      <h1>{t("app.title")}</h1>
+      <p className="subhead">{t("app.subtitle")}</p>
     </div>
     <div className="status-block">
-      <StatusBadge status={status} />
+      <StatusBadge status={status} fallback={t("status.ready")} />
       <button className="ghost" onClick={onReloadPrompts}>
-        重新加载 Prompt
+        {t("action.reloadPrompt")}
       </button>
       <button className="ghost" onClick={onOpenFloating}>
-        打开浮窗
+        {t("action.openFloating")}
       </button>
     </div>
   </header>
