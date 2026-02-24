@@ -40,5 +40,5 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "AgenType ${{ github.ref_name }}"
           releaseBody: "Automated release for AgenType."
-          draft: true
+          releaseDraft: true
           prerelease: true
