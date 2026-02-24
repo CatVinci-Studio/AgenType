@@ -51,13 +51,44 @@ jobs:
           prerelease: false
           args: --bundles ${{ matrix.bundles }}
 
+      - name: Rename macOS assets
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -e
+          dmg=$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -n 1)
+          tarball=$(ls src-tauri/target/release/bundle/macos/*.app.tar.gz | head -n 1)
+          cp "$dmg" "AgenType-macOS.dmg"
+          cp "$tarball" "AgenType-macOS-Portable.tar.gz"
+          echo "OLD_DMG=$(basename "$dmg")" >> "$GITHUB_ENV"
+          echo "OLD_TARBALL=$(basename "$tarball")" >> "$GITHUB_ENV"
+
+      - name: Upload renamed macOS assets
+        if: runner.os == 'macOS'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            AgenType-macOS.dmg
+            AgenType-macOS-Portable.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Remove default macOS assets
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          gh release delete-asset "${{ github.ref_name }}" "$OLD_DMG" -y || true
+          gh release delete-asset "${{ github.ref_name }}" "$OLD_TARBALL" -y || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Package portable binary
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $releaseDir = "src-tauri/target/release"
-          $zipPath = "${{ github.workspace }}\AgenType-portable.zip"
+          $zipPath = "${{ github.workspace }}\AgenType-Windows-Portable.zip"
           if (Test-Path $zipPath) { Remove-Item $zipPath }
           Compress-Archive -Path "$releaseDir\*.exe" -DestinationPath $zipPath
 
@@ -65,6 +96,6 @@ jobs:
         if: runner.os == 'Windows'
         uses: softprops/action-gh-release@v2
         with:
-          files: AgenType-portable.zip
+          files: AgenType-Windows-Portable.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
