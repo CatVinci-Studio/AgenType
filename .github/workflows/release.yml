@@ -15,7 +15,7 @@ jobs:
           - platform: macos-latest
             bundles: app,dmg
           - platform: windows-latest
-            bundles: nsis,portable
+            bundles: nsis
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout
@@ -47,3 +47,21 @@ jobs:
           releaseDraft: true
           prerelease: true
           args: --bundles ${{ matrix.bundles }}
+
+      - name: Package portable binary
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $releaseDir = "src-tauri/target/release"
+          $zipPath = "${{ github.workspace }}\AgenType-portable.zip"
+          if (Test-Path $zipPath) { Remove-Item $zipPath }
+          Compress-Archive -Path "$releaseDir\*.exe" -DestinationPath $zipPath
+
+      - name: Upload portable zip
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: AgenType-portable.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

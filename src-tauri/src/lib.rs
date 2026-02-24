@@ -4,6 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::Manager;
 
 #[tauri::command]
 fn insert_text(text: String) -> Result<(), String> {
@@ -188,11 +189,25 @@ $result.Text
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_global_shortcut::init())
-        .plugin(tauri_plugin_store::init())
-        .plugin(tauri_plugin_stronghold::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            #[cfg(desktop)]
+            {
+                app.handle()
+                    .plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
+            }
+
+            let salt_path = app
+                .path()
+                .app_local_data_dir()
+                .map_err(|error| error.to_string())?
+                .join("salt.txt");
+            app.handle()
+                .plugin(tauri_plugin_stronghold::Builder::with_argon2(&salt_path).build())?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             insert_text,
             trigger_screenshot,
