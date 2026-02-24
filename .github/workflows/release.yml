@@ -47,8 +47,8 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "AgenType ${{ github.ref_name }}"
           releaseBody: "Automated release for AgenType."
-          releaseDraft: true
-          prerelease: true
+          releaseDraft: false
+          prerelease: false
           args: --bundles ${{ matrix.bundles }}
 
       - name: Package portable binary

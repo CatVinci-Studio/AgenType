@@ -6,31 +6,27 @@ import type { Translator } from "../../lib/i18n";
 type SettingsPanelProps = {
   settings: Settings;
   apiKey: string;
-  promptPath: string;
   onApiKeyChange: (value: string) => void;
   onSaveApiKey: () => void;
   onSettingsChange: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
-  onOpenPromptFile: () => void;
   onUpdateSlot: (slotId: string, patch: Partial<Slot>) => void;
+  onAddSlot: () => void;
+  onRemoveSlot: (slotId: string) => void;
   t: Translator;
 };
 
 const SettingsPanel = ({
   settings,
   apiKey,
-  promptPath,
   onApiKeyChange,
   onSaveApiKey,
   onSettingsChange,
-  onOpenPromptFile,
   onUpdateSlot,
+  onAddSlot,
+  onRemoveSlot,
   t,
 }: SettingsPanelProps) => (
   <section className="panel panel-settings">
-    <div className="panel-header">
-      <h2>{t("panel.settings")}</h2>
-      <span className="chip">AgenType</span>
-    </div>
     <div className="settings-grid">
       <div className="setting-block">
         <label>{t("label.apiKey")}</label>
@@ -59,23 +55,22 @@ const SettingsPanel = ({
       <div className="setting-block">
         <label>{t("label.model")}</label>
         <div className="row">
-          <input
-            value={settings.modelText}
-            onChange={(event) => onSettingsChange("modelText", event.target.value)}
-            placeholder={t("label.modelText")}
-            list="model-options"
-          />
-          <input
-            value={settings.modelVision}
-            onChange={(event) => onSettingsChange("modelVision", event.target.value)}
-            placeholder={t("label.modelVision")}
-            list="model-options"
-          />
-          <datalist id="model-options">
-            {settings.modelOptions.map((model) => (
-              <option value={model} key={model} />
-            ))}
-          </datalist>
+          {settings.modelOptions.length === 0 ? (
+            <select value="" disabled>
+              <option value="">{t("hint.modelsEmpty")}</option>
+            </select>
+          ) : (
+            <select value={settings.model} onChange={(event) => onSettingsChange("model", event.target.value)}>
+              {(settings.modelOptions.includes(settings.model)
+                ? settings.modelOptions
+                : [settings.model, ...settings.modelOptions]
+              ).map((model) => (
+                <option value={model} key={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
       <div className="setting-block">
@@ -87,13 +82,6 @@ const SettingsPanel = ({
             placeholder={getDefaultHotkey()}
           />
           <button onClick={() => onSettingsChange("hotkey", getDefaultHotkey())}>{t("action.reset")}</button>
-        </div>
-      </div>
-      <div className="setting-block">
-        <label>{t("label.promptFile")}</label>
-        <div className="row">
-          <input value={promptPath} readOnly />
-          <button onClick={onOpenPromptFile}>{t("action.open")}</button>
         </div>
       </div>
       <div className="setting-block">
@@ -112,52 +100,79 @@ const SettingsPanel = ({
     </div>
 
     <div className="slot-config">
-      <h3>{t("panel.slotStyles")}</h3>
+      <div className="slot-header">
+        <h3>{t("panel.slotStyles")}</h3>
+        <div className="slot-actions">
+          <button onClick={onAddSlot} disabled={settings.slots.length >= 8}>
+            {t("action.addSlot")}
+          </button>
+        </div>
+      </div>
       <div className="slot-list">
         {settings.slots.map((slot) => (
           <div className="slot-card" key={slot.id}>
             <div className="slot-title">
-              <input value={slot.name} onChange={(event) => onUpdateSlot(slot.id, { name: event.target.value })} />
-              <span className="tag subtle">{slot.id}</span>
+              <div className="slot-name">
+                <label>{t("label.slotName")}</label>
+                <input value={slot.name} onChange={(event) => onUpdateSlot(slot.id, { name: event.target.value })} />
+              </div>
+              <button
+                className="ghost"
+                onClick={() => onRemoveSlot(slot.id)}
+                disabled={settings.slots.length <= 1}
+              >
+                {t("action.removeSlot")}
+              </button>
             </div>
             <div className="slot-fields">
-              <select value={slot.toneClass} onChange={(event) => onUpdateSlot(slot.id, { toneClass: event.target.value })}>
-                {TONE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {t(`tone.${option}`)}
-                  </option>
-                ))}
-              </select>
-              <select value={slot.language} onChange={(event) => onUpdateSlot(slot.id, { language: event.target.value as Slot["language"] })}>
-                {LANGUAGE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {t(`language.${option}`)}
-                  </option>
-                ))}
-              </select>
-              <select value={slot.length} onChange={(event) => onUpdateSlot(slot.id, { length: event.target.value as Slot["length"] })}>
-                {LENGTH_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {t(`length.${option}`)}
-                  </option>
-                ))}
-              </select>
-              <label className="toggle">
+              <div className="slot-field">
+                <label>{t("label.tone")}</label>
+                <select value={slot.toneClass} onChange={(event) => onUpdateSlot(slot.id, { toneClass: event.target.value })}>
+                  {TONE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {t(`tone.${option}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="slot-field">
+                <label>{t("label.outputLanguage")}</label>
+                <select value={slot.language} onChange={(event) => onUpdateSlot(slot.id, { language: event.target.value as Slot["language"] })}>
+                  {LANGUAGE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {t(`language.${option}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="slot-field">
+                <label>{t("label.length")}</label>
+                <select value={slot.length} onChange={(event) => onUpdateSlot(slot.id, { length: event.target.value as Slot["length"] })}>
+                  {LENGTH_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {t(`length.${option}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="slot-field">
+                <label>{t("label.emailFormat")}</label>
+                <select
+                  value={slot.emailFormat ? "yes" : "no"}
+                  onChange={(event) => onUpdateSlot(slot.id, { emailFormat: event.target.value === "yes" })}
+                >
+                  <option value="yes">{t("option.yes")}</option>
+                  <option value="no">{t("option.no")}</option>
+                </select>
+              </div>
+              <div className="slot-field full">
+                <label>{t("label.slotDescription")}</label>
                 <input
-                  type="checkbox"
-                  checked={slot.greeting}
-                  onChange={(event) => onUpdateSlot(slot.id, { greeting: event.target.checked })}
+                  value={slot.description}
+                  onChange={(event) => onUpdateSlot(slot.id, { description: event.target.value })}
+                  placeholder={t("placeholder.slotDescription")}
                 />
-                <span>{t("label.greeting")}</span>
-              </label>
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={slot.closing}
-                  onChange={(event) => onUpdateSlot(slot.id, { closing: event.target.checked })}
-                />
-                <span>{t("label.closing")}</span>
-              </label>
+              </div>
             </div>
           </div>
         ))}

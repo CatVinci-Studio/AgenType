@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { register, unregisterAll } from "@tauri-apps/plugin-global-shortcut";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { Store } from "@tauri-apps/plugin-store";
 import AppHeader from "./components/AppHeader";
 import FloatingHeader from "./components/FloatingHeader";
@@ -14,13 +14,13 @@ import InputPanel from "./features/input/InputPanel";
 import SettingsPanel from "./features/settings/SettingsPanel";
 import { DEFAULT_SETTINGS, SETTINGS_STORE_PATH } from "./lib/constants";
 import { createTranslator } from "./lib/i18n";
-import { requestOpenAI } from "./lib/openai";
+import { requestOpenAI, requestOpenAIModels } from "./lib/openai";
 import { waitForClipboardImage, imageToBase64 } from "./lib/ocr";
-import { buildStyleLines, renderPrompt } from "./lib/prompt";
+import { buildStyleLines, getSystemPrompt, renderPrompt } from "./lib/prompt";
 import { getDefaultHotkey, mergeSettings } from "./lib/settings";
-import { ensurePromptFile, loadApiKey, saveApiKey } from "./lib/storage";
+import { loadApiKey, saveApiKey } from "./lib/storage";
 import { safeParseJson } from "./lib/utils";
-import type { Candidate, HistoryEntry, PromptConfig, Settings, Status } from "./lib/types";
+import type { Candidate, HistoryEntry, Settings, Status } from "./lib/types";
 import "./App.css";
 
 type OpenAIResult = Array<{ id?: string; text?: string }>;
@@ -33,16 +33,12 @@ function App() {
   const [inputText, setInputText] = useState<string>("");
   const [status, setStatus] = useState<Status>({ state: "idle", message: "" });
   const [apiKey, setApiKey] = useState<string>("");
-  const [promptConfig, setPromptConfig] = useState<PromptConfig>({
-    system: "",
-    template: "",
-  });
-  const [promptPath, setPromptPath] = useState<string>("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const storeRef = useRef<Store | null>(null);
 
   const t = useMemo(() => createTranslator(settings.uiLanguage), [settings.uiLanguage]);
-  const activeSlots = useMemo(() => settings.slots.slice(0, settings.candidateCount), [settings]);
+  const activeSlots = useMemo(() => settings.slots, [settings.slots]);
 
   useEffect(() => {
     const init = async () => {
@@ -56,16 +52,11 @@ function App() {
       const storedHistory = (await store.get("history")) as HistoryEntry[] | undefined;
       setHistory(Array.isArray(storedHistory) ? storedHistory : []);
 
-      const { promptPath, promptConfig, migrated } = await ensurePromptFile();
-      setPromptConfig(promptConfig);
-      setPromptPath(promptPath);
-      if (migrated) {
-        const translator = createTranslator(mergedSettings.uiLanguage);
-        setStatus({ state: "success", message: translator("status.promptMigrated") });
-      }
-
       const apiKey = await loadApiKey(store);
       setApiKey(apiKey);
+      if (!apiKey) {
+        setSettings((prev) => ({ ...prev, modelOptions: [], model: "" }));
+      }
     };
     init();
   }, []);
@@ -82,7 +73,7 @@ function App() {
   }, [settings]);
 
   useEffect(() => {
-    if (!storeRef.current || !settings.historyEnabled) {
+    if (!storeRef.current) {
       return;
     }
     const persistHistory = async () => {
@@ -90,7 +81,7 @@ function App() {
       await storeRef.current?.save();
     };
     persistHistory();
-  }, [history, settings.historyEnabled]);
+  }, [history]);
 
   useEffect(() => {
     if (history.length > settings.historyLimit) {
@@ -133,6 +124,25 @@ function App() {
     if (!storeRef.current) return;
     await saveApiKey(storeRef.current, apiKey);
     updateStatus("success", t("status.apiKeySaved"));
+    if (!apiKey) {
+      setSettings((prev) => ({ ...prev, modelOptions: [], model: "" }));
+      return;
+    }
+    try {
+      const models = await requestOpenAIModels(apiKey);
+      if (models.length === 0) {
+        updateStatus("error", t("status.modelsFailed"));
+        return;
+      }
+      setSettings((prev) => ({
+        ...prev,
+        modelOptions: models,
+        model: models.includes(prev.model) ? prev.model : models[0],
+      }));
+      updateStatus("success", t("status.modelsUpdated"));
+    } catch (error) {
+      updateStatus("error", error instanceof Error ? error.message : t("status.modelsFailed"));
+    }
   };
 
   const handleCapture = async () => {
@@ -147,7 +157,22 @@ function App() {
     }
   };
 
-  const handleClipboardText = async () => {
+  const handleClipboardFill = async () => {
+    updateStatus("working", t("status.clipboardReading"));
+    try {
+      const text = await readText();
+      if (!text.trim()) {
+        updateStatus("error", t("status.clipboardEmpty"));
+        return;
+      }
+      setInputText(text);
+      updateStatus("success", t("status.clipboardFilled"));
+    } catch (error) {
+      updateStatus("error", error instanceof Error ? error.message : t("status.clipboardFailed"));
+    }
+  };
+
+  const handleClipboardGenerate = async () => {
     updateStatus("working", t("status.clipboardReading"));
     try {
       const text = await readText();
@@ -162,6 +187,7 @@ function App() {
     }
   };
 
+
   const processInput = async ({
     inputText = "",
     imageBase64 = "",
@@ -173,6 +199,10 @@ function App() {
   }) => {
     if (!apiKey) {
       updateStatus("error", t("status.noApiKey"));
+      return;
+    }
+    if (!settings.model) {
+      updateStatus("error", t("status.noModel"));
       return;
     }
 
@@ -206,19 +236,19 @@ function App() {
     }
 
     const styles = buildStyleLines(activeSlots);
-    const systemPrompt = promptConfig.system;
-    const userPrompt = renderPrompt(promptConfig, finalText || "[图片内容]", activeSlots.length, styles);
+    const systemPrompt = getSystemPrompt();
+    const userPrompt = renderPrompt(finalText || "[图片内容]", activeSlots.length, styles);
 
     let responseText = "";
     try {
       updateStatus("working", t("status.generating"));
-      responseText = await requestOpenAI({
-        apiKey,
-        model: useVision ? settings.modelVision : settings.modelText,
-        systemPrompt,
-        userPrompt,
-        imageBase64: useVision ? imageBase64 : undefined,
-      });
+        responseText = await requestOpenAI({
+          apiKey,
+          model: settings.model,
+          systemPrompt,
+          userPrompt,
+          imageBase64: useVision ? imageBase64 : undefined,
+        });
     } catch (error) {
       updateStatus("error", error instanceof Error ? error.message : t("status.requestFailed"));
       return;
@@ -245,18 +275,16 @@ function App() {
     setCandidates(normalized);
     updateStatus("success", t("status.candidatesReady"));
 
-    if (settings.historyEnabled) {
-      const historyInput = finalText || inputText;
-      const entry: HistoryEntry = {
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-        input: historyInput,
-        source: inputSource,
-        candidates: normalized,
-        slots: activeSlots,
-      };
-      setHistory((prev) => [entry, ...prev].slice(0, settings.historyLimit));
-    }
+    const historyInput = finalText || inputText;
+    const entry: HistoryEntry = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      input: historyInput,
+      source: inputSource,
+      candidates: normalized,
+      slots: activeSlots,
+    };
+    setHistory((prev) => [entry, ...prev].slice(0, settings.historyLimit));
   };
 
   const handleManualGenerate = async () => {
@@ -283,15 +311,12 @@ function App() {
     }
   };
 
-  const handleOpenPromptFile = async () => {
-    if (!promptPath) return;
-    await openPath(promptPath);
+  const handleOpenSettings = () => {
+    setSettingsOpen(true);
   };
 
-  const handleReloadPrompts = async () => {
-    const { promptConfig } = await ensurePromptFile();
-    setPromptConfig(promptConfig);
-    updateStatus("success", t("status.promptReloaded"));
+  const handleCloseSettings = () => {
+    setSettingsOpen(false);
   };
 
   const handleOpenFloating = async () => {
@@ -301,7 +326,7 @@ function App() {
       await existing.setFocus();
       return;
     }
-    const floating = new Window("floating", {
+    const floating = new WebviewWindow("floating", {
       url: "/#/floating",
       title: "AgenType",
       width: 420,
@@ -338,6 +363,36 @@ function App() {
     }));
   };
 
+  const handleAddSlot = () => {
+    setSettings((prev) => {
+      if (prev.slots.length >= 8) {
+        return prev;
+      }
+      const existingIds = new Set(prev.slots.map((slot) => slot.id));
+      let nextIndex = prev.slots.length + 1;
+      while (existingIds.has(`slot${nextIndex}`)) {
+        nextIndex += 1;
+      }
+      const base = prev.slots[prev.slots.length - 1] ?? DEFAULT_SETTINGS.slots[0];
+      const newSlot = {
+        ...base,
+        id: `slot${nextIndex}`,
+        name: `${t("label.slot")} ${nextIndex}`,
+        description: "",
+      };
+      return { ...prev, slots: [...prev.slots, newSlot] };
+    });
+  };
+
+  const handleRemoveSlot = (slotId: string) => {
+    setSettings((prev) => {
+      if (prev.slots.length <= 1) {
+        return prev;
+      }
+      return { ...prev, slots: prev.slots.filter((slot) => slot.id !== slotId) };
+    });
+  };
+
   const handleSettingsChange = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
@@ -353,12 +408,11 @@ function App() {
           <button className="primary" onClick={handleCapture}>
             {t("action.capture")}
           </button>
-          <button onClick={handleClipboardText}>{t("action.clipboard")}</button>
+          <button onClick={handleClipboardGenerate}>{t("action.clipboard")}</button>
         </div>
         <CandidatesPanel candidates={candidates} slots={settings.slots} onCopy={handleCopy} onInsert={handleInsert} t={t} />
         <HistoryPanel
           history={history}
-          historyEnabled={settings.historyEnabled}
           onCopy={handleCopy}
           variant="compact"
           t={t}
@@ -369,28 +423,23 @@ function App() {
 
   return (
     <div className="app">
-      <AppHeader status={status} onReloadPrompts={handleReloadPrompts} onOpenFloating={handleOpenFloating} t={t} />
+      <AppHeader status={status} onOpenFloating={handleOpenFloating} onOpenSettings={handleOpenSettings} t={t} />
       <main className="main-grid">
         <InputPanel
           inputText={inputText}
           hotkey={settings.hotkey}
           ocrMode={settings.ocrMode}
-          candidateCount={settings.candidateCount}
-          historyEnabled={settings.historyEnabled}
           onChangeText={setInputText}
           onCapture={handleCapture}
-          onClipboard={handleClipboardText}
+          onReadClipboard={handleClipboardFill}
           onGenerate={handleManualGenerate}
           onClear={() => setInputText("")}
           onChangeOcrMode={(value) => handleSettingsChange("ocrMode", value)}
-          onChangeCandidateCount={(value) => handleSettingsChange("candidateCount", value)}
-          onChangeHistoryEnabled={(value) => handleSettingsChange("historyEnabled", value)}
           t={t}
         />
         <CandidatesPanel candidates={candidates} slots={settings.slots} onCopy={handleCopy} onInsert={handleInsert} t={t} />
         <HistoryPanel
           history={history}
-          historyEnabled={settings.historyEnabled}
           selectedHistoryId={selectedHistoryId}
           onSelect={setSelectedHistoryId}
           onCopy={handleCopy}
@@ -398,18 +447,28 @@ function App() {
           variant="full"
           t={t}
         />
-        <SettingsPanel
-          settings={settings}
-          apiKey={apiKey}
-          promptPath={promptPath}
-          onApiKeyChange={setApiKey}
-          onSaveApiKey={handleApiKeySave}
-          onSettingsChange={handleSettingsChange}
-          onOpenPromptFile={handleOpenPromptFile}
-          onUpdateSlot={updateSlot}
-          t={t}
-        />
       </main>
+      <div className={`settings-overlay ${settingsOpen ? "open" : ""}`} onClick={handleCloseSettings}>
+        <aside className="settings-drawer" onClick={(event) => event.stopPropagation()}>
+          <div className="drawer-header">
+            <h2>{t("panel.settings")}</h2>
+            <button className="ghost" onClick={handleCloseSettings}>
+              {t("action.close")}
+            </button>
+          </div>
+          <SettingsPanel
+            settings={settings}
+            apiKey={apiKey}
+            onApiKeyChange={setApiKey}
+            onSaveApiKey={handleApiKeySave}
+            onSettingsChange={handleSettingsChange}
+            onUpdateSlot={updateSlot}
+            onAddSlot={handleAddSlot}
+            onRemoveSlot={handleRemoveSlot}
+            t={t}
+          />
+        </aside>
+      </div>
     </div>
   );
 }

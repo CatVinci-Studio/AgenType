@@ -1,5 +1,4 @@
-import { DEFAULT_HOTKEYS, DEFAULT_SETTINGS, DEFAULT_SLOTS } from "./constants";
-import { clampNumber } from "./utils";
+import { DEFAULT_HOTKEYS, DEFAULT_SETTINGS } from "./constants";
 import type { Settings } from "./types";
 
 export const getDefaultHotkey = () => {
@@ -16,18 +15,28 @@ export const mergeSettings = (stored?: Partial<Settings> | null): Settings => {
       hotkey: getDefaultHotkey(),
     };
   }
-  const candidateCount = clampNumber(
-    Number(stored.candidateCount || DEFAULT_SETTINGS.candidateCount),
-    1,
-    DEFAULT_SLOTS.length,
-  );
   const uiLanguage = stored.uiLanguage === "zh" || stored.uiLanguage === "en" ? stored.uiLanguage : "en";
+  const legacyModel = (stored as Partial<Settings> & { modelText?: string }).modelText;
+  const model = stored.model || legacyModel || DEFAULT_SETTINGS.model;
+  const slots = stored.slots?.length
+    ? stored.slots.map((slot, index) => {
+        const legacySlot = slot as typeof slot & { greeting?: boolean; closing?: boolean; emailFormat?: boolean };
+        const hasEmailFormat = typeof legacySlot.emailFormat === "boolean";
+        const inferredEmailFormat = (legacySlot.greeting ?? false) || (legacySlot.closing ?? false);
+        return {
+          ...DEFAULT_SETTINGS.slots[index % DEFAULT_SETTINGS.slots.length],
+          ...slot,
+          description: slot.description ?? "",
+          emailFormat: hasEmailFormat ? legacySlot.emailFormat : inferredEmailFormat,
+        };
+      })
+    : DEFAULT_SETTINGS.slots;
   return {
     ...DEFAULT_SETTINGS,
     ...stored,
-    candidateCount,
+    model,
     uiLanguage,
-    slots: stored.slots?.length ? stored.slots : DEFAULT_SETTINGS.slots,
+    slots,
     hotkey: stored.hotkey || getDefaultHotkey(),
   };
 };

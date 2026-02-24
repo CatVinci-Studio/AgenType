@@ -30,6 +30,7 @@ const CandidatesPanel = ({ candidates, slots, onCopy, onInsert, title, t }: Cand
                   {slot?.language === "en" ? t("language.short.en") : t("language.short.zh")}
                 </span>
               </div>
+              {slot?.description ? <p className="slot-description">{slot.description}</p> : null}
               <p>{candidate.text}</p>
               <div className="actions">
                 <button className="primary" onClick={() => onCopy(candidate.text)}>

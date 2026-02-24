@@ -40,3 +40,25 @@ export const requestOpenAI = async ({ apiKey, model, systemPrompt, userPrompt, i
   const payload = await response.json();
   return payload.choices?.[0]?.message?.content ?? "";
 };
+
+export const requestOpenAIModels = async (apiKey: string): Promise<string[]> => {
+  const response = await fetch("https://api.openai.com/v1/models", {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI 请求失败: ${errorText}`);
+  }
+
+  const payload = (await response.json()) as { data?: Array<{ id?: string }> };
+  const models = Array.isArray(payload.data)
+    ? payload.data
+        .map((item) => item.id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+        .filter((id) => id.startsWith("gpt-"))
+    : [];
+  return Array.from(new Set(models)).sort();
+};

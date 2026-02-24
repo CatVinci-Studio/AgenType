@@ -4,12 +4,12 @@ import type { Translator } from "../lib/i18n";
 
 type AppHeaderProps = {
   status: Status;
-  onReloadPrompts: () => void;
   onOpenFloating: () => void;
+  onOpenSettings: () => void;
   t: Translator;
 };
 
-const AppHeader = ({ status, onReloadPrompts, onOpenFloating, t }: AppHeaderProps) => (
+const AppHeader = ({ status, onOpenFloating, onOpenSettings, t }: AppHeaderProps) => (
   <header className="app-header">
     <div>
       <p className="eyebrow">AgenType</p>
@@ -18,11 +18,11 @@ const AppHeader = ({ status, onReloadPrompts, onOpenFloating, t }: AppHeaderProp
     </div>
     <div className="status-block">
       <StatusBadge status={status} fallback={t("status.ready")} />
-      <button className="ghost" onClick={onReloadPrompts}>
-        {t("action.reloadPrompt")}
-      </button>
       <button className="ghost" onClick={onOpenFloating}>
         {t("action.openFloating")}
+      </button>
+      <button className="ghost" onClick={onOpenSettings}>
+        {t("action.settings")}
       </button>
     </div>
   </header>

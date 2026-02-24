@@ -5,20 +5,17 @@ export type UiLanguage = "en" | "zh";
 export type Slot = {
   id: string;
   name: string;
+  description: string;
   toneClass: string;
   language: "zh" | "en";
   length: "short" | "medium" | "long";
-  greeting: boolean;
-  closing: boolean;
+  emailFormat: boolean;
 };
 
 export type Settings = {
-  candidateCount: number;
   ocrMode: OcrMode;
-  historyEnabled: boolean;
   historyLimit: number;
-  modelText: string;
-  modelVision: string;
+  model: string;
   modelOptions: string[];
   hotkey: string;
   uiLanguage: UiLanguage;

@@ -1,17 +1,12 @@
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { Stronghold } from "@tauri-apps/plugin-stronghold";
 import type { Store as StoreType } from "@tauri-apps/plugin-store";
-import defaultPrompts from "../config/defaultPrompts.json";
 import {
-  PROMPT_FILE_NAME,
   STRONGHOLD_CLIENT,
   STRONGHOLD_KEY,
   STRONGHOLD_PASSWORD_KEY,
   STRONGHOLD_PATH_NAME,
 } from "./constants";
-import { safeParseJson } from "./utils";
-import type { PromptConfig } from "./types";
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -59,24 +54,4 @@ export const saveApiKey = async (store: StoreType, apiKey: string) => {
   }
   await stronghold.save();
   await stronghold.unload();
-};
-
-export const ensurePromptFile = async () => {
-  const dataDir = await appDataDir();
-  const promptPath = await join(dataDir, PROMPT_FILE_NAME);
-  const defaultContent = JSON.stringify(defaultPrompts, null, 2);
-  const existsFile = await exists(promptPath);
-  let currentContent = "";
-  if (existsFile) {
-    currentContent = await readTextFile(promptPath);
-  }
-
-  const normalized = currentContent.trim();
-  const shouldWrite = !existsFile || normalized !== defaultContent;
-  if (shouldWrite) {
-    await writeTextFile(promptPath, defaultContent);
-  }
-
-  const parsed = safeParseJson<PromptConfig>(defaultContent) ?? defaultPrompts;
-  return { promptPath, promptConfig: parsed, migrated: existsFile && normalized !== defaultContent };
 };

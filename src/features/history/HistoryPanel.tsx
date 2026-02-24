@@ -4,7 +4,6 @@ import type { Translator } from "../../lib/i18n";
 
 type HistoryPanelProps = {
   history: HistoryEntry[];
-  historyEnabled: boolean;
   selectedHistoryId?: string;
   onSelect?: (id: string) => void;
   onCopy: (text: string) => void;
@@ -22,7 +21,6 @@ const renderActions = (candidates: Candidate[], onCopy: (text: string) => void, 
 
 const HistoryPanel = ({
   history,
-  historyEnabled,
   selectedHistoryId,
   onSelect,
   onCopy,
@@ -35,9 +33,7 @@ const HistoryPanel = ({
       <h2>{t("panel.history")}</h2>
       <span className="chip">{t("count.items", { count: history.length })}</span>
     </div>
-    {!historyEnabled ? (
-      <div className="empty">{t("empty.historyDisabled")}</div>
-    ) : history.length === 0 ? (
+    {history.length === 0 ? (
       <div className="empty">{t("empty.history")}</div>
     ) : (
       <div className="history-list">
@@ -90,20 +86,27 @@ const HistoryDetail = ({ entry, onCopy, onInsert, t }: HistoryDetailProps) => {
         <span className="chip">{t("count.items", { count: entry.candidates.length })}</span>
       </div>
       <div className="candidate-list">
-        {entry.candidates.map((candidate) => (
-          <div className="candidate-card" key={candidate.id}>
-            <div className="candidate-head">
-              <span className="tag">{candidate.id}</span>
+        {entry.candidates.map((candidate) => {
+          const slot = entry.slots.find((item) => item.id === candidate.id);
+          return (
+            <div className="candidate-card" key={candidate.id}>
+              <div className="candidate-head">
+                <span className="tag">{slot?.name || candidate.id}</span>
+                <span className="tag subtle">
+                  {slot?.language === "en" ? t("language.short.en") : t("language.short.zh")}
+                </span>
+              </div>
+              {slot?.description ? <p className="slot-description">{slot.description}</p> : null}
+              <p>{candidate.text}</p>
+              <div className="actions">
+                <button className="primary" onClick={() => onCopy(candidate.text)}>
+                  {t("action.copy")}
+                </button>
+                <button onClick={() => onInsert(candidate.text)}>{t("action.insert")}</button>
+              </div>
             </div>
-            <p>{candidate.text}</p>
-            <div className="actions">
-              <button className="primary" onClick={() => onCopy(candidate.text)}>
-                {t("action.copy")}
-              </button>
-              <button onClick={() => onInsert(candidate.text)}>{t("action.insert")}</button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -29,8 +29,8 @@ fn trigger_screenshot() -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        let status = Command::new("powershell")
-            .args(["-Command", "Start-Process 'ms-screenclip:'"])
+        let status = Command::new("explorer.exe")
+            .arg("ms-screenclip:")
             .status()
             .map_err(|error| format!("failed to launch screenshot tool: {error}"))?;
         if !status.success() {
