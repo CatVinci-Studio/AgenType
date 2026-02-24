@@ -58,7 +58,6 @@ export const requestOpenAIModels = async (apiKey: string): Promise<string[]> => 
     ? payload.data
         .map((item) => item.id)
         .filter((id): id is string => typeof id === "string" && id.length > 0)
-        .filter((id) => id.startsWith("gpt-"))
     : [];
   return Array.from(new Set(models)).sort();
 };

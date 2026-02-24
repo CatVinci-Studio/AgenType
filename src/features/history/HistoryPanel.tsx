@@ -8,6 +8,8 @@ type HistoryPanelProps = {
   onSelect?: (id: string) => void;
   onCopy: (text: string) => void;
   onInsert?: (text: string) => void;
+  onClear?: () => void;
+  onDelete?: (id: string) => void;
   variant?: "compact" | "full";
   t: Translator;
 };
@@ -25,13 +27,22 @@ const HistoryPanel = ({
   onSelect,
   onCopy,
   onInsert,
+  onClear,
+  onDelete,
   variant = "full",
   t,
 }: HistoryPanelProps) => (
   <section className="panel panel-history">
     <div className="panel-header">
       <h2>{t("panel.history")}</h2>
-      <span className="chip">{t("count.items", { count: history.length })}</span>
+      <div className="panel-actions">
+        <span className="chip">{t("count.items", { count: history.length })}</span>
+        {onClear ? (
+          <button className="ghost" onClick={onClear} disabled={history.length === 0}>
+            {t("action.clearHistory")}
+          </button>
+        ) : null}
+      </div>
     </div>
     {history.length === 0 ? (
       <div className="empty">{t("empty.history")}</div>
@@ -51,6 +62,11 @@ const HistoryPanel = ({
                 <button onClick={() => onSelect(entry.id)}>{t("action.view")}</button>
               ) : null}
               {renderActions(entry.candidates, onCopy, t)}
+              {onDelete ? (
+                <button className="ghost" onClick={() => onDelete(entry.id)}>
+                  {t("action.delete")}
+                </button>
+              ) : null}
             </div>
           </div>
         ))}

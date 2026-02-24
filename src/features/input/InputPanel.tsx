@@ -28,7 +28,7 @@ const InputPanel = ({
   onReadClipboard,
   t,
 }: InputPanelProps) => {
-  const [activeTab, setActiveTab] = useState<"capture" | "clipboard">("capture");
+  const [activeTab, setActiveTab] = useState<"capture" | "clipboard">("clipboard");
 
   return (
     <section className="panel panel-primary">
@@ -38,16 +38,16 @@ const InputPanel = ({
       </div>
       <div className="tab-bar">
         <button
-          className={`tab ${activeTab === "capture" ? "active" : ""}`}
-          onClick={() => setActiveTab("capture")}
-        >
-          {t("tab.captureImage")}
-        </button>
-        <button
           className={`tab ${activeTab === "clipboard" ? "active" : ""}`}
           onClick={() => setActiveTab("clipboard")}
         >
           {t("tab.clipboardText")}
+        </button>
+        <button
+          className={`tab ${activeTab === "capture" ? "active" : ""}`}
+          onClick={() => setActiveTab("capture")}
+        >
+          {t("tab.captureImage")}
         </button>
       </div>
       {activeTab === "capture" ? (

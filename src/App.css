@@ -150,6 +150,12 @@ textarea {
   margin-bottom: 16px;
 }
 
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .panel-header h2 {
   margin: 0;
   font-size: 20px;

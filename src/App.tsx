@@ -56,6 +56,19 @@ function App() {
       setApiKey(apiKey);
       if (!apiKey) {
         setSettings((prev) => ({ ...prev, modelOptions: [], model: "" }));
+      } else if (mergedSettings.modelOptions.length === 0) {
+        try {
+          const models = await requestOpenAIModels(apiKey);
+          if (models.length > 0) {
+            setSettings((prev) => ({
+              ...prev,
+              modelOptions: models,
+              model: models.includes(prev.model) ? prev.model : models[0],
+            }));
+          }
+        } catch (error) {
+          // ignore initial model load failures
+        }
       }
     };
     init();
@@ -414,6 +427,8 @@ function App() {
         <HistoryPanel
           history={history}
           onCopy={handleCopy}
+          onClear={() => setHistory([])}
+          onDelete={(id) => setHistory((prev) => prev.filter((entry) => entry.id !== id))}
           variant="compact"
           t={t}
         />
@@ -444,6 +459,14 @@ function App() {
           onSelect={setSelectedHistoryId}
           onCopy={handleCopy}
           onInsert={handleInsert}
+          onClear={() => {
+            setHistory([]);
+            setSelectedHistoryId("");
+          }}
+          onDelete={(id) => {
+            setHistory((prev) => prev.filter((entry) => entry.id !== id));
+            setSelectedHistoryId((prev) => (prev === id ? "" : prev));
+          }}
           variant="full"
           t={t}
         />

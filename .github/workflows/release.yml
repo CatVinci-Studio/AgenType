@@ -73,14 +73,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Remove default macOS assets
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          gh release delete-asset "${{ github.ref_name }}" "$OLD_DMG" -y || true
-          gh release delete-asset "${{ github.ref_name }}" "$OLD_TARBALL" -y || true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Package portable binary
         if: runner.os == 'Windows'
