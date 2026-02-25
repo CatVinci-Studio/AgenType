@@ -3,7 +3,7 @@ import type { Settings, Slot } from "./types";
 export const DEFAULT_SLOTS: Slot[] = [
   {
     id: "slot1",
-    name: "正式",
+    name: "Formal",
     description: "",
     toneClass: "formal",
     language: "zh",
@@ -12,7 +12,7 @@ export const DEFAULT_SLOTS: Slot[] = [
   },
   {
     id: "slot2",
-    name: "简短",
+    name: "Concise",
     description: "",
     toneClass: "concise",
     language: "zh",
@@ -21,7 +21,7 @@ export const DEFAULT_SLOTS: Slot[] = [
   },
   {
     id: "slot3",
-    name: "热情",
+    name: "Warm",
     description: "",
     toneClass: "warm",
     language: "zh",
