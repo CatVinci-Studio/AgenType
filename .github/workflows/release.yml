@@ -51,54 +51,23 @@ jobs:
           prerelease: false
           args: --bundles ${{ matrix.bundles }}
 
-      - name: Rename macOS assets
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          set -e
-          dmg=$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -n 1)
-          tarball=$(ls src-tauri/target/release/bundle/macos/*.app.tar.gz | head -n 1)
-          cp "$dmg" "AgenType-macOS.dmg"
-          cp "$tarball" "AgenType-macOS-Portable.tar.gz"
-          echo "OLD_DMG=$(basename "$dmg")" >> "$GITHUB_ENV"
-          echo "OLD_TARBALL=$(basename "$tarball")" >> "$GITHUB_ENV"
-
-      - name: Upload renamed macOS assets
-        if: runner.os == 'macOS'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            AgenType-macOS.dmg
-            AgenType-macOS-Portable.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-      - name: Package portable binary
+      - name: Create portable Windows exe
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $releaseDir = "src-tauri/target/release"
-          $zipPath = "${{ github.workspace }}\AgenType-Windows-Portable.zip"
-          if (Test-Path $zipPath) { Remove-Item $zipPath }
-          Compress-Archive -Path "$releaseDir\*.exe" -DestinationPath $zipPath
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          $portableName = "AgenType_${version}_x64-Portable.exe"
+          $binary = Get-ChildItem -Path "src-tauri/target/release" -Filter "*.exe" -File | Select-Object -First 1
+          if (-not $binary) { throw "Portable exe not found in src-tauri/target/release" }
+          Copy-Item -Path $binary.FullName -Destination "${{ github.workspace }}\$portableName" -Force
+          "PORTABLE_EXE=$portableName" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Rename Windows NSIS installer
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $installer = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe" | Select-Object -First 1
-          if (-not $installer) { throw "NSIS installer not found" }
-          Copy-Item -Path $installer.FullName -Destination "${{ github.workspace }}\AgenType-Windows-Setup.exe" -Force
-
-      - name: Upload portable zip
+      - name: Upload portable Windows exe
         if: runner.os == 'Windows'
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            AgenType-Windows-Portable.zip
-            AgenType-Windows-Setup.exe
+            ${{ env.PORTABLE_EXE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
