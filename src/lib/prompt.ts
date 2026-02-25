@@ -2,6 +2,8 @@ import type { Slot } from "./types";
 
 const SYSTEM_PROMPT =
   "You are a professional assistant that drafts concise and appropriate replies. Output only a JSON array and nothing else.";
+const IMAGE_SYSTEM_PROMPT =
+  "You are a professional assistant that drafts concise and appropriate replies. Output only a JSON array and nothing else. Reply to the message contained in the image.";
 const TEMPLATE_PROMPT =
   "Original content:\n{{input}}\n\nGenerate {{count}} reply candidates. Each candidate must strictly follow its style configuration:\n{{styles}}\n\nOutput format must be a JSON array, each item contains id and text:\n[{\"id\":\"slot1\",\"text\":\"...\"}]";
 
@@ -34,6 +36,8 @@ export const buildStyleLines = (slots: Slot[]) =>
     .join("\n");
 
 export const getSystemPrompt = () => SYSTEM_PROMPT;
+
+export const getImageSystemPrompt = () => IMAGE_SYSTEM_PROMPT;
 
 export const renderPrompt = (input: string, count: number, styles: string) =>
   TEMPLATE_PROMPT.replace("{{input}}", input).replace("{{count}}", String(count)).replace("{{styles}}", styles);

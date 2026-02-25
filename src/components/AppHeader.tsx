@@ -6,10 +6,11 @@ type AppHeaderProps = {
   status: Status;
   onOpenFloating: () => void;
   onOpenSettings: () => void;
+  showFloating?: boolean;
   t: Translator;
 };
 
-const AppHeader = ({ status, onOpenFloating, onOpenSettings, t }: AppHeaderProps) => (
+const AppHeader = ({ status, onOpenFloating, onOpenSettings, showFloating = true, t }: AppHeaderProps) => (
   <header className="app-header">
     <div>
       <p className="eyebrow">AgenType</p>
@@ -18,9 +19,11 @@ const AppHeader = ({ status, onOpenFloating, onOpenSettings, t }: AppHeaderProps
     </div>
     <div className="status-block">
       <StatusBadge status={status} fallback={t("status.ready")} />
-      <button className="ghost" onClick={onOpenFloating}>
-        {t("action.openFloating")}
-      </button>
+      {showFloating ? (
+        <button className="ghost" onClick={onOpenFloating}>
+          {t("action.openFloating")}
+        </button>
+      ) : null}
       <button className="ghost" onClick={onOpenSettings}>
         {t("action.settings")}
       </button>

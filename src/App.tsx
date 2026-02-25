@@ -1,10 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { Window } from "@tauri-apps/api/window";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { register, unregisterAll } from "@tauri-apps/plugin-global-shortcut";
-import { Store } from "@tauri-apps/plugin-store";
 import AppHeader from "./components/AppHeader";
 import FloatingHeader from "./components/FloatingHeader";
 import StatusBadge from "./components/StatusBadge";
@@ -12,15 +6,14 @@ import CandidatesPanel from "./features/candidates/CandidatesPanel";
 import HistoryPanel from "./features/history/HistoryPanel";
 import InputPanel from "./features/input/InputPanel";
 import SettingsPanel from "./features/settings/SettingsPanel";
-import { DEFAULT_SETTINGS, SETTINGS_STORE_PATH } from "./lib/constants";
+import { DEFAULT_SETTINGS } from "./lib/constants";
 import { createTranslator } from "./lib/i18n";
 import { requestOpenAI, requestOpenAIModels } from "./lib/openai";
-import { waitForClipboardImage, imageToBase64 } from "./lib/ocr";
-import { buildStyleLines, getSystemPrompt, renderPrompt } from "./lib/prompt";
+import { buildStyleLines, getImageSystemPrompt, getSystemPrompt, renderPrompt } from "./lib/prompt";
 import { getDefaultHotkey, mergeSettings } from "./lib/settings";
-import { loadApiKey, saveApiKey } from "./lib/storage";
 import { safeParseJson } from "./lib/utils";
 import type { Candidate, HistoryEntry, Settings, Status } from "./lib/types";
+import { getPlatform, type Platform, type PlatformStorage } from "./platform";
 import "./App.css";
 
 type OpenAIResult = Array<{ id?: string; text?: string }>;
@@ -31,28 +24,37 @@ function App() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string>("");
   const [inputText, setInputText] = useState<string>("");
+  const [inputMode, setInputMode] = useState<"text" | "image">("text");
+  const [inputImage, setInputImage] = useState<{ base64: string; dataUrl: string } | null>(null);
   const [status, setStatus] = useState<Status>({ state: "idle", message: "" });
   const [apiKey, setApiKey] = useState<string>("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
-  const storeRef = useRef<Store | null>(null);
+  const [platform, setPlatform] = useState<Platform | null>(null);
+  const platformRef = useRef<Platform | null>(null);
+  const storageRef = useRef<PlatformStorage | null>(null);
 
   const t = useMemo(() => createTranslator(settings.uiLanguage), [settings.uiLanguage]);
   const activeSlots = useMemo(() => settings.slots, [settings.slots]);
 
   useEffect(() => {
     const init = async () => {
-      const store = await Store.load(SETTINGS_STORE_PATH, {
-        defaults: { settings: DEFAULT_SETTINGS, history: [] },
-      });
-      storeRef.current = store;
-      const storedSettings = (await store.get("settings")) as Settings | undefined;
+      const resolvedPlatform = await getPlatform();
+      platformRef.current = resolvedPlatform;
+      storageRef.current = resolvedPlatform.storage;
+      setPlatform(resolvedPlatform);
+
+      const storedSettings = await resolvedPlatform.storage.loadSettings();
       const mergedSettings = mergeSettings(storedSettings);
+      if (!resolvedPlatform.capabilities.systemOcr) {
+        mergedSettings.ocrMode = "vision";
+      }
       setSettings(mergedSettings);
-      const storedHistory = (await store.get("history")) as HistoryEntry[] | undefined;
+
+      const storedHistory = await resolvedPlatform.storage.loadHistory();
       setHistory(Array.isArray(storedHistory) ? storedHistory : []);
 
-      const apiKey = await loadApiKey(store);
+      const apiKey = await resolvedPlatform.storage.loadApiKey();
       setApiKey(apiKey);
       if (!apiKey) {
         setSettings((prev) => ({ ...prev, modelOptions: [], model: "" }));
@@ -75,23 +77,21 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!storeRef.current) {
+    if (!storageRef.current) {
       return;
     }
     const persist = async () => {
-      await storeRef.current?.set("settings", settings);
-      await storeRef.current?.save();
+      await storageRef.current?.saveSettings(settings);
     };
     persist();
   }, [settings]);
 
   useEffect(() => {
-    if (!storeRef.current) {
+    if (!storageRef.current) {
       return;
     }
     const persistHistory = async () => {
-      await storeRef.current?.set("history", history);
-      await storeRef.current?.save();
+      await storageRef.current?.saveHistory(history);
     };
     persistHistory();
   }, [history]);
@@ -109,14 +109,17 @@ function App() {
   }, [history, selectedHistoryId]);
 
   useEffect(() => {
+    const currentPlatform = platformRef.current;
+    if (!currentPlatform?.capabilities.hotkey || !currentPlatform.hotkey || !currentPlatform.capabilities.screenshot || !currentPlatform.capture) {
+      return;
+    }
+
     const registerHotkey = async () => {
       const hotkey = settings.hotkey || getDefaultHotkey();
       try {
-        await unregisterAll();
-        await register(hotkey, async (event) => {
-          if (event.state === "Pressed") {
-            await handleCapture();
-          }
+        await currentPlatform.hotkey?.unregisterAll();
+        await currentPlatform.hotkey?.register(hotkey, async () => {
+          await handleCapture();
         });
       } catch (error) {
         setStatus({ state: "error", message: t("status.hotkeyFailed") });
@@ -125,17 +128,26 @@ function App() {
 
     registerHotkey();
     return () => {
-      unregisterAll();
+      currentPlatform.hotkey?.unregisterAll();
     };
-  }, [settings.hotkey, t]);
+  }, [platform, settings.hotkey, t]);
 
   const updateStatus = (state: Status["state"], message: string) => {
     setStatus({ state, message });
   };
 
+  const handleChangeInputMode = (mode: "text" | "image") => {
+    setInputMode(mode);
+    if (mode === "text") {
+      setInputImage(null);
+    } else {
+      setInputText("");
+    }
+  };
+
   const handleApiKeySave = async () => {
-    if (!storeRef.current) return;
-    await saveApiKey(storeRef.current, apiKey);
+    if (!storageRef.current) return;
+    await storageRef.current.saveApiKey(apiKey);
     updateStatus("success", t("status.apiKeySaved"));
     if (!apiKey) {
       setSettings((prev) => ({ ...prev, modelOptions: [], model: "" }));
@@ -159,11 +171,14 @@ function App() {
   };
 
   const handleCapture = async () => {
+    const currentPlatform = platformRef.current;
+    if (!currentPlatform?.capture) {
+      updateStatus("error", t("status.screenshotFailed"));
+      return;
+    }
     updateStatus("working", t("status.waitingScreenshot"));
     try {
-      await invoke("trigger_screenshot");
-      const image = await waitForClipboardImage();
-      const base64 = await imageToBase64(image);
+      const base64 = await currentPlatform.capture.screenshotToBase64();
       await processInput({ imageBase64: base64, inputSource: "screenshot" });
     } catch (error) {
       updateStatus("error", error instanceof Error ? error.message : t("status.screenshotFailed"));
@@ -173,7 +188,10 @@ function App() {
   const handleClipboardFill = async () => {
     updateStatus("working", t("status.clipboardReading"));
     try {
-      const text = await readText();
+      const text = await platformRef.current?.clipboard.readText();
+      if (typeof text !== "string") {
+        throw new Error(t("status.clipboardFailed"));
+      }
       if (!text.trim()) {
         updateStatus("error", t("status.clipboardEmpty"));
         return;
@@ -188,7 +206,10 @@ function App() {
   const handleClipboardGenerate = async () => {
     updateStatus("working", t("status.clipboardReading"));
     try {
-      const text = await readText();
+      const text = await platformRef.current?.clipboard.readText();
+      if (typeof text !== "string") {
+        throw new Error(t("status.clipboardFailed"));
+      }
       if (!text.trim()) {
         updateStatus("error", t("status.clipboardEmpty"));
         return;
@@ -219,29 +240,8 @@ function App() {
       return;
     }
 
-    let finalText = inputText;
-    let useVision = Boolean(imageBase64);
-    if (imageBase64 && settings.ocrMode !== "vision") {
-      try {
-        const ocrText = await invoke<string>("system_ocr", { image_base64: imageBase64 });
-        if (ocrText?.trim()) {
-          finalText = ocrText.trim();
-          setInputText(finalText);
-          useVision = false;
-        } else if (settings.ocrMode === "system") {
-          updateStatus("working", t("status.ocrEmptyFallback"));
-          useVision = true;
-        }
-      } catch (error) {
-        if (settings.ocrMode === "system") {
-          updateStatus("working", t("status.ocrUnavailableFallback"));
-          useVision = true;
-        } else {
-          updateStatus("working", t("status.ocrFailedFallback"));
-          useVision = true;
-        }
-      }
-    }
+    const finalText = inputText;
+    const useVision = Boolean(imageBase64);
 
     if (!finalText.trim() && !useVision) {
       updateStatus("error", t("status.noContent"));
@@ -249,19 +249,19 @@ function App() {
     }
 
     const styles = buildStyleLines(activeSlots);
-    const systemPrompt = getSystemPrompt();
-    const userPrompt = renderPrompt(finalText || "[图片内容]", activeSlots.length, styles);
+    const systemPrompt = imageBase64 ? getImageSystemPrompt() : getSystemPrompt();
+    const userPrompt = renderPrompt(finalText || t("label.screenshotContent"), activeSlots.length, styles);
 
     let responseText = "";
     try {
       updateStatus("working", t("status.generating"));
-        responseText = await requestOpenAI({
-          apiKey,
-          model: settings.model,
-          systemPrompt,
-          userPrompt,
-          imageBase64: useVision ? imageBase64 : undefined,
-        });
+      responseText = await requestOpenAI({
+        apiKey,
+        model: settings.model,
+        systemPrompt,
+        userPrompt,
+        imageBase64: useVision ? imageBase64 : undefined,
+      });
     } catch (error) {
       updateStatus("error", error instanceof Error ? error.message : t("status.requestFailed"));
       return;
@@ -288,7 +288,7 @@ function App() {
     setCandidates(normalized);
     updateStatus("success", t("status.candidatesReady"));
 
-    const historyInput = finalText || inputText;
+    const historyInput = finalText || inputText || t("label.screenshotContent");
     const entry: HistoryEntry = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
@@ -300,7 +300,16 @@ function App() {
     setHistory((prev) => [entry, ...prev].slice(0, settings.historyLimit));
   };
 
-  const handleManualGenerate = async () => {
+  const handleGenerate = async () => {
+    if (inputMode === "image") {
+      if (!inputImage?.base64) {
+        updateStatus("error", t("status.noContent"));
+        return;
+      }
+      await processInput({ imageBase64: inputImage.base64, inputSource: "image" });
+      return;
+    }
+
     if (!inputText.trim()) {
       updateStatus("error", t("status.needInput"));
       return;
@@ -309,17 +318,25 @@ function App() {
   };
 
   const handleCopy = async (text: string) => {
-    await writeText(text);
-    updateStatus("success", t("status.copied"));
+    try {
+      await platformRef.current?.clipboard.writeText(text);
+      updateStatus("success", t("status.copied"));
+    } catch (error) {
+      updateStatus("error", error instanceof Error ? error.message : t("status.clipboardFailed"));
+    }
   };
 
   const handleInsert = async (text: string) => {
+    if (!platformRef.current?.capabilities.insertText || !platformRef.current.insertText) {
+      await handleCopy(text);
+      return;
+    }
     updateStatus("working", t("status.inserting"));
     try {
-      await invoke("insert_text", { text });
+      await platformRef.current.insertText(text);
       updateStatus("success", t("status.inserted"));
     } catch (error) {
-      await writeText(text);
+      await handleCopy(text);
       updateStatus("error", t("status.insertFailedCopied"));
     }
   };
@@ -333,39 +350,53 @@ function App() {
   };
 
   const handleOpenFloating = async () => {
-    const existing = await Window.getByLabel("floating");
-    if (existing) {
-      await existing.show();
-      await existing.setFocus();
+    if (!platformRef.current?.floating) {
       return;
     }
-    const floating = new WebviewWindow("floating", {
-      url: "/#/floating",
-      title: "AgenType",
-      width: 420,
-      height: 620,
-      resizable: false,
-      decorations: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      transparent: false,
-    });
-    floating.once("tauri://created", async () => {
-      await floating.show();
-      await floating.setFocus();
-    });
+    await platformRef.current.floating.openFloating();
   };
 
   const handleCloseFloating = async () => {
-    const current = Window.getCurrent();
-    await current.hide();
+    if (!platformRef.current?.floating) {
+      return;
+    }
+    await platformRef.current.floating.closeFloating();
   };
 
   const handleOpenMain = async () => {
-    const mainWindow = await Window.getByLabel("main");
-    if (mainWindow) {
-      await mainWindow.show();
-      await mainWindow.setFocus();
+    if (!platformRef.current?.floating) {
+      return;
+    }
+    await platformRef.current.floating.openMain();
+  };
+
+  const fileToBase64 = (file: File) =>
+    new Promise<{ base64: string; dataUrl: string }>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result !== "string") {
+          reject(new Error(t("status.imageReadFailed")));
+          return;
+        }
+        const base64 = reader.result.split(",")[1] ?? "";
+        if (!base64) {
+          reject(new Error(t("status.imageReadFailed")));
+          return;
+        }
+        resolve({ base64, dataUrl: reader.result });
+      };
+      reader.onerror = () => reject(new Error(t("status.imageReadFailed")));
+      reader.readAsDataURL(file);
+    });
+
+  const handleImageFile = async (file: File) => {
+    updateStatus("working", t("status.readingImage"));
+    try {
+      const imageData = await fileToBase64(file);
+      setInputImage(imageData);
+      updateStatus("success", t("status.ready"));
+    } catch (error) {
+      updateStatus("error", error instanceof Error ? error.message : t("status.imageReadFailed"));
     }
   };
 
@@ -418,12 +449,22 @@ function App() {
           <StatusBadge status={status} fallback={t("status.ready")} />
         </div>
         <div className="actions">
-          <button className="primary" onClick={handleCapture}>
-            {t("action.capture")}
-          </button>
-          <button onClick={handleClipboardGenerate}>{t("action.clipboard")}</button>
+          {platform?.capabilities.screenshot ? (
+            <button className="primary" onClick={handleCapture}>
+              {t("action.capture")}
+            </button>
+          ) : null}
+          {platform?.capabilities.clipboardRead ? (
+            <button onClick={handleClipboardGenerate}>{t("action.clipboard")}</button>
+          ) : null}
         </div>
-        <CandidatesPanel candidates={candidates} slots={settings.slots} onCopy={handleCopy} onInsert={handleInsert} t={t} />
+        <CandidatesPanel
+          candidates={candidates}
+          slots={settings.slots}
+          onCopy={handleCopy}
+          onInsert={platform?.capabilities.insertText ? handleInsert : undefined}
+          t={t}
+        />
         <HistoryPanel
           history={history}
           onCopy={handleCopy}
@@ -438,27 +479,50 @@ function App() {
 
   return (
     <div className="app">
-      <AppHeader status={status} onOpenFloating={handleOpenFloating} onOpenSettings={handleOpenSettings} t={t} />
+      <AppHeader
+        status={status}
+        onOpenFloating={handleOpenFloating}
+        onOpenSettings={handleOpenSettings}
+        showFloating={Boolean(platform?.capabilities.floatingWindow)}
+        t={t}
+      />
       <main className="main-grid">
         <InputPanel
           inputText={inputText}
+          inputMode={inputMode}
           hotkey={settings.hotkey}
+          showHotkey={Boolean(platform?.capabilities.hotkey)}
+          showCapture={Boolean(platform?.capabilities.screenshot)}
+          showOcrMode={Boolean(platform?.capabilities.systemOcr)}
+          showClipboard={Boolean(platform?.capabilities.clipboardRead)}
           ocrMode={settings.ocrMode}
           onChangeText={setInputText}
+          onChangeMode={handleChangeInputMode}
           onCapture={handleCapture}
           onReadClipboard={handleClipboardFill}
-          onGenerate={handleManualGenerate}
-          onClear={() => setInputText("")}
+          onImageFile={handleImageFile}
+          imagePreviewUrl={inputImage?.dataUrl}
+          onGenerate={handleGenerate}
+          onClear={() => {
+            setInputText("");
+            setInputImage(null);
+          }}
           onChangeOcrMode={(value) => handleSettingsChange("ocrMode", value)}
           t={t}
         />
-        <CandidatesPanel candidates={candidates} slots={settings.slots} onCopy={handleCopy} onInsert={handleInsert} t={t} />
+        <CandidatesPanel
+          candidates={candidates}
+          slots={settings.slots}
+          onCopy={handleCopy}
+          onInsert={platform?.capabilities.insertText ? handleInsert : undefined}
+          t={t}
+        />
         <HistoryPanel
           history={history}
           selectedHistoryId={selectedHistoryId}
           onSelect={setSelectedHistoryId}
           onCopy={handleCopy}
-          onInsert={handleInsert}
+          onInsert={platform?.capabilities.insertText ? handleInsert : undefined}
           onClear={() => {
             setHistory([]);
             setSelectedHistoryId("");
@@ -488,6 +552,7 @@ function App() {
             onUpdateSlot={updateSlot}
             onAddSlot={handleAddSlot}
             onRemoveSlot={handleRemoveSlot}
+            showHotkey={Boolean(platform?.capabilities.hotkey)}
             t={t}
           />
         </aside>

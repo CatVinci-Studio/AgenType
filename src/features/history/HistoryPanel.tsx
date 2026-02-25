@@ -72,7 +72,7 @@ const HistoryPanel = ({
         ))}
       </div>
     )}
-    {variant === "full" && onInsert && selectedHistoryId ? (
+    {variant === "full" && selectedHistoryId ? (
       <HistoryDetail
         entry={history.find((item) => item.id === selectedHistoryId)}
         onCopy={onCopy}
@@ -86,7 +86,7 @@ const HistoryPanel = ({
 type HistoryDetailProps = {
   entry?: HistoryEntry;
   onCopy: (text: string) => void;
-  onInsert: (text: string) => void;
+  onInsert?: (text: string) => void;
   t: Translator;
 };
 
@@ -118,7 +118,7 @@ const HistoryDetail = ({ entry, onCopy, onInsert, t }: HistoryDetailProps) => {
                 <button className="primary" onClick={() => onCopy(candidate.text)}>
                   {t("action.copy")}
                 </button>
-                <button onClick={() => onInsert(candidate.text)}>{t("action.insert")}</button>
+                {onInsert ? <button onClick={() => onInsert(candidate.text)}>{t("action.insert")}</button> : null}
               </div>
             </div>
           );

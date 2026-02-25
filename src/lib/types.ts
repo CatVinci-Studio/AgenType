@@ -31,7 +31,7 @@ export type HistoryEntry = {
   id: string;
   createdAt: string;
   input: string;
-  source: "screenshot" | "clipboard" | "manual";
+  source: "screenshot" | "clipboard" | "manual" | "image";
   candidates: Candidate[];
   slots: Slot[];
 };

@@ -12,6 +12,7 @@ type SettingsPanelProps = {
   onUpdateSlot: (slotId: string, patch: Partial<Slot>) => void;
   onAddSlot: () => void;
   onRemoveSlot: (slotId: string) => void;
+  showHotkey?: boolean;
   t: Translator;
 };
 
@@ -24,6 +25,7 @@ const SettingsPanel = ({
   onUpdateSlot,
   onAddSlot,
   onRemoveSlot,
+  showHotkey = true,
   t,
 }: SettingsPanelProps) => (
   <section className="panel panel-settings">
@@ -73,17 +75,19 @@ const SettingsPanel = ({
           )}
         </div>
       </div>
-      <div className="setting-block">
-        <label>{t("label.hotkey")}</label>
-        <div className="row">
-          <input
-            value={settings.hotkey}
-            onChange={(event) => onSettingsChange("hotkey", event.target.value)}
-            placeholder={getDefaultHotkey()}
-          />
-          <button onClick={() => onSettingsChange("hotkey", getDefaultHotkey())}>{t("action.reset")}</button>
+      {showHotkey ? (
+        <div className="setting-block">
+          <label>{t("label.hotkey")}</label>
+          <div className="row">
+            <input
+              value={settings.hotkey}
+              onChange={(event) => onSettingsChange("hotkey", event.target.value)}
+              placeholder={getDefaultHotkey()}
+            />
+            <button onClick={() => onSettingsChange("hotkey", getDefaultHotkey())}>{t("action.reset")}</button>
+          </div>
         </div>
-      </div>
+      ) : null}
       <div className="setting-block">
         <label>{t("label.historyLimit")}</label>
         <div className="row">

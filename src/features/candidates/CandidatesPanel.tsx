@@ -5,7 +5,7 @@ type CandidatesPanelProps = {
   candidates: Candidate[];
   slots: Slot[];
   onCopy: (text: string) => void;
-  onInsert: (text: string) => void;
+  onInsert?: (text: string) => void;
   title?: string;
   t: Translator;
 };
@@ -36,7 +36,7 @@ const CandidatesPanel = ({ candidates, slots, onCopy, onInsert, title, t }: Cand
                 <button className="primary" onClick={() => onCopy(candidate.text)}>
                   {t("action.copy")}
                 </button>
-                <button onClick={() => onInsert(candidate.text)}>{t("action.insert")}</button>
+                {onInsert ? <button onClick={() => onInsert(candidate.text)}>{t("action.insert")}</button> : null}
               </div>
             </div>
           );

@@ -209,6 +209,32 @@ textarea {
   margin-bottom: 16px;
 }
 
+.input-tabs {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.6);
+  margin-bottom: 16px;
+}
+
+.input-tabs .tab {
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+.input-tabs .tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 10px 20px rgba(24, 18, 31, 0.08);
+}
+
 .actions button,
 button {
   border: none;
@@ -242,6 +268,41 @@ button.ghost {
   font-size: 14px;
   margin-bottom: 8px;
   color: var(--muted);
+}
+
+.image-input {
+  border-radius: 16px;
+  border: 1px dashed var(--border);
+  padding: 16px;
+  background: var(--surface-strong);
+  display: grid;
+  gap: 12px;
+  min-height: 140px;
+  outline: none;
+}
+
+.image-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(24, 18, 31, 0.14);
+}
+
+.image-placeholder {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.image-preview {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.textarea-block .hint {
+  display: block;
+  margin-top: 8px;
 }
 
 textarea {
