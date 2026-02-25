@@ -1,6 +1,5 @@
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { Window } from "@tauri-apps/api/window";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { WebviewWindow, getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { Store } from "@tauri-apps/plugin-store";
 import { Stronghold } from "@tauri-apps/plugin-stronghold";
@@ -96,7 +95,7 @@ const clipboard = {
 
 const floating = {
   openFloating: async () => {
-    const existing = await Window.getByLabel("floating");
+    const existing = await WebviewWindow.getByLabel("floating");
     if (existing) {
       await existing.show();
       await existing.setFocus();
@@ -119,11 +118,11 @@ const floating = {
     });
   },
   closeFloating: async () => {
-    const current = Window.getCurrent();
+    const current = getCurrentWebviewWindow();
     await current.hide();
   },
   openMain: async () => {
-    const mainWindow = await Window.getByLabel("main");
+    const mainWindow = await WebviewWindow.getByLabel("main");
     if (mainWindow) {
       await mainWindow.show();
       await mainWindow.setFocus();

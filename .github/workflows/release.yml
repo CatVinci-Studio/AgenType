@@ -84,10 +84,21 @@ jobs:
           if (Test-Path $zipPath) { Remove-Item $zipPath }
           Compress-Archive -Path "$releaseDir\*.exe" -DestinationPath $zipPath
 
+      - name: Rename Windows NSIS installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe" | Select-Object -First 1
+          if (-not $installer) { throw "NSIS installer not found" }
+          Copy-Item -Path $installer.FullName -Destination "${{ github.workspace }}\AgenType-Windows-Setup.exe" -Force
+
       - name: Upload portable zip
         if: runner.os == 'Windows'
         uses: softprops/action-gh-release@v2
         with:
-          files: AgenType-Windows-Portable.zip
+          files: |
+            AgenType-Windows-Portable.zip
+            AgenType-Windows-Setup.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
